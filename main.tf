@@ -20,17 +20,31 @@ resource "google_container_cluster" "primary" {
   name     = "${var.cluster_name}-${random_string.random_suffix.result}"
   location = var.region
 
-  # Use release channel to automatically use the most recent Kubernetes version
+  # Set deletion protection to false to allow deletion of the cluster
+  deletion_protection = false
+
   release_channel {
     channel = "RAPID"  # You can switch to "STABLE" if preferred
   }
 
   remove_default_node_pool = true
-  initial_node_count       = 1
 
   # Enable autoscaling at the cluster level
   cluster_autoscaling {
     enabled = true
+
+    # Specify resource limits for CPU and memory (adjust as needed)
+    resource_limits {
+      resource_type = "cpu"
+      minimum = 1
+      maximum = 100
+    }
+
+    resource_limits {
+      resource_type = "memory"
+      minimum = 1
+      maximum = 200
+    }
   }
 
   # Define a preemptible node pool with autoscaling
@@ -62,16 +76,4 @@ resource "google_container_cluster" "primary" {
       auto_upgrade = true
     }
   }
-}
-
-output "endpoint" {
-  value = google_container_cluster.primary.endpoint
-}
-
-output "master_version" {
-  value = google_container_cluster.primary.master_version
-}
-
-output "cluster_name" {
-  value = google_container_cluster.primary.name
 }

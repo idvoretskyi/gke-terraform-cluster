@@ -1,0 +1,99 @@
+# Ignore Terraform state files
+terraform.tfstate*
+terraform.tfstate.backup
+
+# Ignore Terraform plan files
+*.tfplan
+
+# Ignore Terraform output files
+terraform.output.txt
+
+# Ignore Terraform logs
+*.log
+
+# Ignore Terraform modules
+modules/
+
+# Ignore Terraform providers
+providers/
+
+# Ignore Terraform variables
+variables.tf
+
+# Ignore Terraform outputs
+outputs.tf
+
+# Ignore Terraform backend configuration
+backend.tf
+
+# Ignore Terraform workspace files
+*.tfworkspace
+
+# Ignore Terraform remote state files
+*.tfstate.s3
+
+# Ignore Terraform remote state lock files
+*.tfstate.lock.s3
+
+# Ignore Terraform remote state backup files
+*.tfstate.backup.s3
+
+# Ignore Terraform remote state encryption keys
+*.tfstate.enc.s3
+
+# Ignore Terraform remote state decryption keys
+*.tfstate.dec.s3
+
+# Ignore Terraform remote state version files
+*.tfstate.version.s3
+
+# Ignore Terraform remote state metadata files
+*.tfstate.meta.s3
+
+# Ignore Terraform remote state checksum files
+*.tfstate.checksum.s3
+
+# Ignore Terraform remote state signature files
+*.tfstate.signature.s3
+
+# Ignore Terraform remote state policy files
+*.tfstate.policy.s3
+
+# Ignore Terraform remote state access control lists
+*.tfstate.acl.s3
+
+# Ignore Terraform remote state tags
+*.tfstate.tags.s3
+
+# Ignore Terraform remote state lifecycle rules
+*.tfstate.lifecycle.s3
+
+# Ignore Terraform remote state notifications
+*.tfstate.notifications.s3
+
+# Ignore Terraform remote state events
+*.tfstate.events.s3
+
+# Ignore Terraform remote state audit logs
+*.tfstate.audit.s3
+
+# Ignore Terraform remote state metrics
+*.tfstate.metrics.s3
+
+# Ignore Terraform remote state billing
+*.tfstate.billing.s3
+
+# Ignore Terraform remote state compliance
+*.tfstate.compliance.s3
+
+# Ignore Terraform remote state security
+*.tfstate.security.s3
+
+# Ignore Terraform remote state governance
+*.tfstate.governance.s3
+
+# Ignore Terraform remote state operations
+*.tfstate.operations.s3
+
+# Ignore Terraform remote state data
+*.tfstate.data.
