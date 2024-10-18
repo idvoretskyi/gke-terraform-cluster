@@ -97,3 +97,5 @@ backend.tf
 
 # Ignore Terraform remote state data
 *.tfstate.data..terraform.lock.hcl
+.terraform.lock.hcl
+.terraform.tfstate.lock.info
