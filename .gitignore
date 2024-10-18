@@ -96,4 +96,4 @@ backend.tf
 *.tfstate.operations.s3
 
 # Ignore Terraform remote state data
-*.tfstate.data.
+*.tfstate.data..terraform.lock.hcl

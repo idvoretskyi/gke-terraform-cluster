@@ -47,9 +47,8 @@ resource "google_container_cluster" "primary" {
     }
   }
 
-  # Define a preemptible node pool with autoscaling
+  # Define a preemptible node pool with autoscaling (no custom name)
   node_pool {
-    name       = "preemptible-pool"
     node_count = var.min_nodes
 
     autoscaling {
