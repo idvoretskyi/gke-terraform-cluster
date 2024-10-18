@@ -18,7 +18,7 @@ variable "cluster_name" {
 variable "machine_type" {
   description = "The machine type for the GKE nodes"
   type        = string
-  default     = "e2-medium"
+  default     = "e2-small"
 }
 
 variable "min_nodes" {
