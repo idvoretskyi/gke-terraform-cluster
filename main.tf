@@ -27,7 +27,7 @@ resource "google_container_cluster" "primary" {
     channel = "RAPID"  # You can switch to "STABLE" if preferred
   }
 
-  remove_default_node_pool = true
+  remove_default_node_pool = false
 
   # Enable autoscaling at the cluster level
   cluster_autoscaling {
