@@ -3,6 +3,7 @@ locals {
     data.external.gcloud_project.result.project_id != "" ? data.external.gcloud_project.result.project_id : null
   )
   region       = var.region != null && var.region != "" ? var.region : data.external.gcloud_region.result.region
+  zone         = "${local.region}-a"  # Use single zone for cost optimization
   cluster_name = "${data.external.username.result.username}-${var.cluster_name_suffix}"
 }
 
@@ -26,7 +27,7 @@ resource "random_string" "random_suffix" {
 
 resource "google_container_cluster" "primary" {
   name     = "${local.cluster_name}-${random_string.random_suffix.result}"
-  location = local.region
+  location = local.zone  # Use zone instead of region for cost optimization
 
   # Set deletion protection to false to allow deletion of the cluster
   deletion_protection = false
@@ -60,7 +61,7 @@ resource "google_container_cluster" "primary" {
 resource "google_container_node_pool" "primary_nodes" {
   name       = "${local.cluster_name}-nodes"
   cluster    = google_container_cluster.primary.id
-  location   = local.region
+  location   = local.zone  # Use zone instead of region
   node_count = var.min_nodes
 
   autoscaling {
