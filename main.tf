@@ -1,6 +1,14 @@
+locals {
+  project_id   = var.project_id != null && var.project_id != "" ? var.project_id : (
+    data.external.gcloud_project.result.project_id != "" ? data.external.gcloud_project.result.project_id : null
+  )
+  region       = var.region != null && var.region != "" ? var.region : data.external.gcloud_region.result.region
+  cluster_name = "${data.external.username.result.username}-${var.cluster_name_suffix}"
+}
+
 provider "google" {
-  project = var.project_id
-  region  = var.region
+  project = local.project_id
+  region  = local.region
 }
 
 provider "random" {
@@ -17,62 +25,75 @@ resource "random_string" "random_suffix" {
 }
 
 resource "google_container_cluster" "primary" {
-  name     = "${var.cluster_name}-${random_string.random_suffix.result}"
-  location = var.region
+  name     = "${local.cluster_name}-${random_string.random_suffix.result}"
+  location = local.region
 
   # Set deletion protection to false to allow deletion of the cluster
   deletion_protection = false
 
   release_channel {
-    channel = "RAPID"  # You can switch to "STABLE" if preferred
+    channel = "RAPID"  # Use RAPID for most recent Kubernetes version
   }
 
-  remove_default_node_pool = false
+  remove_default_node_pool = true
 
-  # Enable autoscaling at the cluster level
+  # Enable cluster autoscaling
   cluster_autoscaling {
     enabled = true
-
-    # Specify resource limits for CPU and memory (adjust as needed)
     resource_limits {
       resource_type = "cpu"
-      minimum = 1
-      maximum = 100
+      minimum       = 1
+      maximum       = 100
     }
-
     resource_limits {
       resource_type = "memory"
-      minimum = 1
-      maximum = 200
+      minimum       = 1
+      maximum       = 1000
     }
   }
 
-  # Define a preemptible node pool with autoscaling (no custom name)
-  node_pool {
-    node_count = var.min_nodes
+  # Initial node pool will be removed
+  initial_node_count = 1
+}
 
-    autoscaling {
-      min_node_count = var.min_nodes
-      max_node_count = var.max_nodes
+# Create separate cost-optimized node pool
+resource "google_container_node_pool" "primary_nodes" {
+  name       = "${local.cluster_name}-nodes"
+  cluster    = google_container_cluster.primary.id
+  location   = local.region
+  node_count = var.min_nodes
+
+  autoscaling {
+    min_node_count = var.min_nodes
+    max_node_count = var.max_nodes
+  }
+
+  node_config {
+    machine_type = var.machine_type
+    spot         = true  # Use spot instances for maximum cost savings
+    disk_size_gb = 20    # Reduce disk size for cost savings
+    disk_type    = "pd-standard"  # Use standard disks instead of SSD
+
+    metadata = {
+      disable-legacy-endpoints = "true"
     }
 
-    node_config {
-      machine_type = var.machine_type
-      preemptible  = true
-      disk_size_gb = 30
+    # Minimal OAuth scopes for cost optimization
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/devstorage.read_only",
+      "https://www.googleapis.com/auth/logging.write",
+      "https://www.googleapis.com/auth/monitoring",
+    ]
 
-      metadata = {
-        disable-legacy-endpoints = "true"
-      }
-
-      oauth_scopes = [
-        "https://www.googleapis.com/auth/cloud-platform",
-      ]
+    # Resource constraints for cost control
+    resource_labels = {
+      environment = "development"
+      cost-center = "dev"
     }
+  }
 
-    management {
-      auto_repair  = true
-      auto_upgrade = true
-    }
+  management {
+    auto_repair  = true
+    auto_upgrade = true
   }
 }

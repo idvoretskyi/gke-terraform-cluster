@@ -1,24 +1,25 @@
 variable "project_id" {
-  description = "The GCP project ID where the cluster will be created"
+  description = "The GCP project ID where the cluster will be created (defaults to current gcloud project)"
   type        = string
+  default     = null
 }
 
 variable "region" {
-  description = "The GCP region where the cluster will be created"
+  description = "The GCP region where the cluster will be created (defaults to current gcloud region)"
   type        = string
-  default     = "europe-west4"
+  default     = null
 }
 
-variable "cluster_name" {
-  description = "The base name of the GKE cluster"
+variable "cluster_name_suffix" {
+  description = "Optional suffix for the cluster name (username prefix will be automatically added)"
   type        = string
-  default     = "cloud-phoenix"  # You can change this to any fictional name you like
+  default     = "gke-cluster"
 }
 
 variable "machine_type" {
   description = "The machine type for the GKE nodes"
   type        = string
-  default     = "e2-small"
+  default     = "e2-micro"
 }
 
 variable "min_nodes" {
