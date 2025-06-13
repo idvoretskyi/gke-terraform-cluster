@@ -48,6 +48,10 @@ jobs:
   terraform-security:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     
     steps:
     - name: Checkout code
@@ -69,3 +73,14 @@ jobs:
       if: always()
       with:
         sarif_file: reports/results.sarif
+      continue-on-error: true
+
+    - name: Display Checkov results summary
+      if: always()
+      run: |
+        echo "Security scan completed. Check the logs above for any findings."
+        if [ -f "reports/results.sarif" ]; then
+          echo "SARIF results file generated successfully."
+        else
+          echo "No SARIF results file found."
+        fi
