@@ -135,20 +135,91 @@ terraform destroy
 - **No cluster autoscaling**: Simplified scaling to avoid unexpected costs
 - **Resource labels**: Cost tracking and management tags
 
+## CI/CD and Testing
+
+This repository includes comprehensive GitHub Actions workflows for automated testing and cost management:
+
+### Workflows
+
+#### 🔍 **Terraform Validation** (`terraform-validate.yml`)
+- **Triggers**: Push to main/develop, Pull requests to main
+- **Features**:
+  - Terraform format checking
+  - Configuration validation
+  - Security scanning with Checkov
+  - Documentation validation
+- **Purpose**: Ensures code quality and security before deployment
+
+#### 🚀 **Cluster Deployment Test** (`cluster-test.yml`)
+- **Triggers**: Manual dispatch, Weekly schedule (Sundays 2 AM UTC)
+- **Features**:
+  - Full cluster deployment and testing
+  - Workload deployment verification
+  - Autoscaling tests
+  - Cost optimization validation
+  - Helm functionality testing
+  - Automatic cleanup after testing
+- **Purpose**: End-to-end validation of cluster functionality
+
+#### 🧹 **Cost Management Cleanup** (`cleanup.yml`)
+- **Triggers**: Manual dispatch, Daily schedule (11 PM UTC)
+- **Features**:
+  - Automatic cleanup of clusters older than 4 hours
+  - Orphaned resource detection and cleanup
+  - Force cleanup option for immediate resource deletion
+  - Cost optimization reporting
+- **Purpose**: Prevents runaway costs from forgotten resources
+
+### Required Secrets
+
+To use the GitHub Actions workflows, configure these repository secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `GCP_PROJECT_ID` | Your Google Cloud Project ID |
+| `GCP_SA_KEY` | Service Account JSON key with necessary permissions |
+
+### Service Account Permissions
+
+The service account should have these roles:
+- `roles/container.admin` (GKE management)
+- `roles/compute.admin` (Compute resources)
+- `roles/iam.serviceAccountUser` (Service account usage)
+
+### Testing Locally
+
+Run validation checks locally:
+
+```bash
+# Format check
+terraform fmt -check -recursive
+
+# Validate configuration
+terraform init -backend=false
+terraform validate
+
+# Security scan (requires Checkov)
+pip install checkov
+checkov -d . --framework terraform
+```
+
 ## Security Considerations
 
 - Legacy endpoints are disabled for security
 - Auto-repair and auto-upgrade are enabled
 - Minimal OAuth scopes for reduced attack surface
 - Resource labels for compliance and tracking
+- Automated security scanning in CI/CD pipeline
+- Regular cleanup of test resources to minimize attack surface
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+4. Ensure all CI/CD checks pass
+5. Test thoroughly (automated tests will run)
+6. Submit a pull request
 
 ## License
 
