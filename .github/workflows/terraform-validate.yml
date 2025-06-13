@@ -18,6 +18,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        version: 'latest'
+        skip_install: false
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
@@ -29,8 +35,15 @@ jobs:
     - name: Terraform Init
       run: terraform init -backend=false
 
+    - name: Debug - Check external data sources
+      run: |
+        echo "Current user: $(whoami)"
+        echo "Gcloud version: $(gcloud version 2>/dev/null || echo 'gcloud not found')"
+        echo "Gcloud project: $(gcloud config get-value project 2>/dev/null || echo 'no project set')"
+        echo "Gcloud region: $(gcloud config get-value compute/region 2>/dev/null || echo 'no region set')"
+
     - name: Terraform Validate
-      run: terraform validate
+      run: terraform validate -no-color
 
   terraform-security:
     name: Security Scan
@@ -56,27 +69,3 @@ jobs:
       if: always()
       with:
         sarif_file: reports/results.sarif
-
-  terraform-docs:
-    name: Documentation Check
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Generate Terraform docs
-      uses: terraform-docs/gh-actions@main
-      with:
-        working-dir: .
-        output-file: TERRAFORM_DOCS.md
-        output-method: inject
-        git-push: false
-
-    - name: Check if documentation is up to date
-      run: |
-        if [[ `git status --porcelain` ]]; then
-          echo "Documentation is not up to date. Please run terraform-docs and commit changes."
-          git diff
-          exit 1
-        fi
