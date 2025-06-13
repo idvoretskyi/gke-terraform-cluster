@@ -31,5 +31,5 @@ variable "min_nodes" {
 variable "max_nodes" {
   description = "The maximum number of nodes in the node pool"
   type        = number
-  default     = 2
+  default     = 3
 }
