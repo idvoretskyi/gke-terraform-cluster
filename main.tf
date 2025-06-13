@@ -1,10 +1,16 @@
 locals {
-  project_id   = var.project_id != null && var.project_id != "" ? var.project_id : (
-    data.external.gcloud_project.result.project_id != "" ? data.external.gcloud_project.result.project_id : null
+  project_id = var.project_id != null && var.project_id != "" ? var.project_id : (
+    try(data.external.gcloud_project.result.project_id, "") != "" ?
+    try(data.external.gcloud_project.result.project_id, "") :
+    "your-project-id-here"
   )
-  region       = var.region != null && var.region != "" ? var.region : data.external.gcloud_region.result.region
-  zone         = "us-central1-a"  # Use single zone for cost optimization
-  cluster_name = "${data.external.username.result.username}-${var.cluster_name_suffix}"
+  region = var.region != null && var.region != "" ? var.region : (
+    try(data.external.gcloud_region.result.region, "") != "" ?
+    try(data.external.gcloud_region.result.region, "") :
+    "us-central1"
+  )
+  zone         = "us-central1-a" # Use single zone for cost optimization
+  cluster_name = "${try(data.external.username.result.username, "default-user")}-${var.cluster_name_suffix}"
 }
 
 provider "google" {
@@ -27,13 +33,13 @@ resource "random_string" "random_suffix" {
 
 resource "google_container_cluster" "primary" {
   name     = "${local.cluster_name}-${random_string.random_suffix.result}"
-  location = local.zone  # Use zone instead of region for cost optimization
+  location = local.zone # Use zone instead of region for cost optimization
 
   # Set deletion protection to false to allow deletion of the cluster
   deletion_protection = false
 
   release_channel {
-    channel = "RAPID"  # Use RAPID for most recent Kubernetes version
+    channel = "RAPID" # Use RAPID for most recent Kubernetes version
   }
 
   remove_default_node_pool = true
@@ -61,7 +67,7 @@ resource "google_container_cluster" "primary" {
 resource "google_container_node_pool" "primary_nodes" {
   name       = "${local.cluster_name}-nodes"
   cluster    = google_container_cluster.primary.id
-  location   = local.zone  # Use zone instead of region
+  location   = local.zone # Use zone instead of region
   node_count = var.min_nodes
 
   autoscaling {
@@ -71,9 +77,9 @@ resource "google_container_node_pool" "primary_nodes" {
 
   node_config {
     machine_type = var.machine_type
-    spot         = true  # Use spot instances for maximum cost savings
-    disk_size_gb = 20    # Reduce disk size for cost savings
-    disk_type    = "pd-standard"  # Use standard disks instead of SSD
+    spot         = true          # Use spot instances for maximum cost savings
+    disk_size_gb = 20            # Reduce disk size for cost savings
+    disk_type    = "pd-standard" # Use standard disks instead of SSD
 
     metadata = {
       disable-legacy-endpoints = "true"
