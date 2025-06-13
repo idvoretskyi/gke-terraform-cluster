@@ -3,7 +3,7 @@ locals {
     data.external.gcloud_project.result.project_id != "" ? data.external.gcloud_project.result.project_id : null
   )
   region       = var.region != null && var.region != "" ? var.region : data.external.gcloud_region.result.region
-  zone         = "${local.region}-a"  # Use single zone for cost optimization
+  zone         = "us-central1-a"  # Use single zone for cost optimization
   cluster_name = "${data.external.username.result.username}-${var.cluster_name_suffix}"
 }
 
