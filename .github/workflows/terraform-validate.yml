@@ -60,10 +60,14 @@ jobs:
   terraform-docs:
     name: Documentation Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Generate Terraform docs
       uses: terraform-docs/gh-actions@main
@@ -73,10 +77,15 @@ jobs:
         output-method: inject
         git-push: false
 
-    - name: Check if documentation is up to date
+    - name: Commit changes if documentation is updated
       run: |
         if [[ `git status --porcelain` ]]; then
-          echo "Documentation is not up to date. Please run terraform-docs and commit changes."
-          git diff
-          exit 1
+          echo "Documentation is not up to date. Committing changes..."
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add .
+          git commit -m "Update Terraform documentation [skip ci]"
+          git push origin HEAD
+        else
+          echo "Documentation is already up to date."
         fi

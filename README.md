@@ -137,9 +137,9 @@ terraform destroy
 
 ## CI/CD and Testing
 
-This repository includes comprehensive GitHub Actions workflows for automated testing and cost management:
+This repository includes a GitHub Actions workflow for automated code validation:
 
-### Workflows
+### Workflow
 
 #### 🔍 **Terraform Validation** (`terraform-validate.yml`)
 - **Triggers**: Push to main/develop, Pull requests to main
@@ -149,42 +149,6 @@ This repository includes comprehensive GitHub Actions workflows for automated te
   - Security scanning with Checkov
   - Documentation validation
 - **Purpose**: Ensures code quality and security before deployment
-
-#### 🚀 **Cluster Deployment Test** (`cluster-test.yml`)
-- **Triggers**: Manual dispatch, Weekly schedule (Sundays 2 AM UTC)
-- **Features**:
-  - Full cluster deployment and testing
-  - Workload deployment verification
-  - Autoscaling tests
-  - Cost optimization validation
-  - Helm functionality testing
-  - Automatic cleanup after testing
-- **Purpose**: End-to-end validation of cluster functionality
-
-#### 🧹 **Cost Management Cleanup** (`cleanup.yml`)
-- **Triggers**: Manual dispatch, Daily schedule (11 PM UTC)
-- **Features**:
-  - Automatic cleanup of clusters older than 4 hours
-  - Orphaned resource detection and cleanup
-  - Force cleanup option for immediate resource deletion
-  - Cost optimization reporting
-- **Purpose**: Prevents runaway costs from forgotten resources
-
-### Required Secrets
-
-To use the GitHub Actions workflows, configure these repository secrets:
-
-| Secret | Description |
-|--------|-------------|
-| `GCP_PROJECT_ID` | Your Google Cloud Project ID |
-| `GCP_SA_KEY` | Service Account JSON key with necessary permissions |
-
-### Service Account Permissions
-
-The service account should have these roles:
-- `roles/container.admin` (GKE management)
-- `roles/compute.admin` (Compute resources)
-- `roles/iam.serviceAccountUser` (Service account usage)
 
 ### Testing Locally
 
@@ -210,7 +174,6 @@ checkov -d . --framework terraform
 - Minimal OAuth scopes for reduced attack surface
 - Resource labels for compliance and tracking
 - Automated security scanning in CI/CD pipeline
-- Regular cleanup of test resources to minimize attack surface
 
 ## Contributing
 
