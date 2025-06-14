@@ -1,11 +1,13 @@
 locals {
+  # Use variable if provided, otherwise try gcloud, fallback to default
   project_id = var.project_id != null && var.project_id != "" ? var.project_id : (
     try(data.external.gcloud_project.result.project_id, "") != "" ?
     try(data.external.gcloud_project.result.project_id, "") :
     "your-project-id-here"
   )
-  region = "us-central1" # Fixed region to match cluster zone
+  region = "us-central1"   # Fixed region to match cluster zone
   zone   = "us-central1-a" # Use single zone for cost optimization
+  # Use username from data source if available, otherwise fallback
   cluster_name = "${try(data.external.username.result.username, "default-user")}-${var.cluster_name_suffix}"
 }
 
