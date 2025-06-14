@@ -64,7 +64,7 @@ curl http://EXTERNAL_IP/api/stats
 ```bash
 # Build and push Docker image
 docker buildx build --platform linux/amd64 \
-  -t gcr.io/PROJECT_ID/rock-paper-scissors-game:latest . --push
+  -t gcr.io/PROJECT_ID/rock-paper-scissors-game:v2.0 . --push
 
 # Deploy to Kubernetes
 kubectl apply -f deployment.yaml
