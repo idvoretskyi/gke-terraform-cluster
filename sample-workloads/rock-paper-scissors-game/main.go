@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -446,8 +444,8 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer-when-downgrade")
 		w.Header().Set("Permissions-Policy", "geolocation=(self), microphone=(), camera=()")
 		
-		// Content Security Policy (CSP) - adjust as needed
-		csp := "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline';"
+		// Content Security Policy (CSP) - tightened for security
+		csp := "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self';"
 		w.Header().Set("Content-Security-Policy", csp)
 		
 		next.ServeHTTP(w, r)
@@ -463,37 +461,35 @@ func gzipHandler(next http.Handler) http.Handler {
 			return
 		}
 		
-		// Create a response writer that compresses the response
-		var buf bytes.Buffer
-		gzw := gzip.NewWriter(&buf)
-		defer gzw.Close()
-		
-		// Tee the response writer to capture the response size
-		tee := io.MultiWriter(w, gzw)
-		w = &responseWriter{ResponseWriter: w, Writer: tee}
-		
-		// Serve the request
-		next.ServeHTTP(w, r)
-		
-		// Close the gzip writer to flush the compressed data
-		gzw.Close()
-		
-		// Set the Content-Encoding header
+		// Set headers before writing starts
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Vary", "Accept-Encoding")
+		
+		// Create gzip writer that writes directly to response
+		gzw := gzip.NewWriter(w)
+		defer gzw.Close()
+		
+		// Wrap response writer with gzip writer
+		gzipResponseWriter := &gzipResponseWriter{
+			ResponseWriter: w,
+			gzipWriter:     gzw,
+		}
+		
+		// Serve the request with wrapped writer
+		next.ServeHTTP(gzipResponseWriter, r)
 	})
 }
 
-type responseWriter struct {
+type gzipResponseWriter struct {
 	http.ResponseWriter
-	io.Writer
+	gzipWriter *gzip.Writer
 }
 
-func (rw *responseWriter) WriteHeader(statusCode int) {
-	rw.ResponseWriter.WriteHeader(statusCode)
+func (grw *gzipResponseWriter) Write(b []byte) (int, error) {
+	return grw.gzipWriter.Write(b)
 }
 
-func (rw *responseWriter) Write(b []byte) (int, error) {
-	return rw.Writer.Write(b)
+func (grw *gzipResponseWriter) WriteHeader(statusCode int) {
+	grw.ResponseWriter.WriteHeader(statusCode)
 }
 

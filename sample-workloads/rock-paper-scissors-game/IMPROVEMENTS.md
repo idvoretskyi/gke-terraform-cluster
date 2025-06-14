@@ -213,26 +213,31 @@ rock-paper-scissors-game/
    - Advanced caching
    - Rate limiting
 
-## ✅ Recent Improvements
+## ✅ Completed Improvements
 
-- **Memory Management**: Implemented games history cap (1000 entries) to prevent indefinite memory growth
-- **Modern Go**: Using `max()` function instead of manual if statements  
-- **Generic Deployment**: PROJECT_ID placeholder for reusable deployment
-- **Proper File Endings**: Added newlines to all files per conventions
+- [x] **Memory Management**: Implemented games history cap (1000 entries) to prevent indefinite memory growth
+- [x] **Player Eviction**: Added periodic eviction of inactive players (24h timeout, max 500 players)
+- [x] **Performance Optimization**: GameStatsCache with incremental updates instead of O(n) recalculation
+- [x] **Template Optimization**: Parse HTML template once at startup, not on every request
+- [x] **Separated Frontend Assets**: HTML, CSS, and JavaScript in dedicated files
+- [x] **CSS Classes**: Replaced inline styles with semantic CSS classes
+- [x] **Gzip Compression**: Fixed middleware to properly compress responses
+- [x] **Modern Go**: Using `max()` function and `slices.Contains` instead of manual implementations
+- [x] **Generic Deployment**: PROJECT_ID placeholder for reusable deployment
+- [x] **Proper File Endings**: Added newlines to all files per conventions
+- [x] **Security**: Enhanced NetworkPolicy egress rules and readOnlyRootFilesystem
+- [x] **CSP**: Tightened Content Security Policy by removing 'unsafe-inline'
 
-## 📋 Quality Checklist
+## 🎯 Recommended Next Steps
 
-- [x] Memory management for games history
-- [x] Modern Go idioms and best practices
 - [ ] Unit tests with >80% coverage
-- [ ] Integration tests for API endpoints
-- [ ] Separated frontend assets
-- [ ] CSS classes instead of inline styles
-- [ ] Incremental stats calculation
-- [ ] Proper error handling
-- [ ] Input validation
-- [ ] Rate limiting
-- [ ] Database persistence
+- [ ] Integration tests for API endpoints  
+- [ ] Proper error handling and recovery
+- [ ] Input validation and sanitization
+- [ ] Rate limiting per IP
+- [ ] Database persistence (PostgreSQL/Redis)
 - [ ] Performance benchmarks
+- [ ] Kubernetes resource optimization
+- [ ] Monitoring and alerting setup
 
 This roadmap transforms the sample from a demo into a production-ready application while maintaining its educational value.

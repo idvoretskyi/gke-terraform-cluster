@@ -54,7 +54,7 @@ spec:
               fieldPath: metadata.namespace
         securityContext:
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
+          readOnlyRootFilesystem: true
           runAsNonRoot: true
           runAsUser: 1000
           capabilities:
@@ -205,13 +205,24 @@ spec:
     - protocol: TCP
       port: 8080
   egress:
-  - to: []
+  # Allow DNS resolution to cluster DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
     ports:
     - protocol: TCP
       port: 53
     - protocol: UDP
       port: 53
-  - to: []
+  # Allow external HTTP/HTTPS for container registry access during startup
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
     ports:
     - protocol: TCP
       port: 443
