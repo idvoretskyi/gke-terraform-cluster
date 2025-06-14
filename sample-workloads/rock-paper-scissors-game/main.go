@@ -8,7 +8,9 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -295,6 +297,107 @@ const htmlTemplate = `
     </div>
     
     <script>
+        let statsUpdateInProgress = false;
+
+        function updateStats() {
+            if (statsUpdateInProgress) return;
+            statsUpdateInProgress = true;
+            
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(stats => {
+                    // Update stat cards
+                    updateStatCards(stats);
+                    
+                    // Update leaderboard
+                    updateLeaderboard(stats.leaderboard);
+                    
+                    // Update recent games
+                    updateRecentGames(stats.recent_games);
+                })
+                .catch(error => {
+                    console.error('Error updating stats:', error);
+                })
+                .finally(() => {
+                    statsUpdateInProgress = false;
+                });
+        }
+
+        function updateStatCards(stats) {
+            const statValues = document.querySelectorAll('.stat-value');
+            if (statValues.length >= 6) {
+                statValues[0].textContent = stats.total_games;
+                statValues[1].textContent = stats.total_players;
+                statValues[2].textContent = stats.move_stats.rock || 0;
+                statValues[3].textContent = stats.move_stats.paper || 0;
+                statValues[4].textContent = stats.move_stats.scissors || 0;
+                statValues[5].textContent = stats.win_stats.win || 0;
+            }
+        }
+
+        function updateLeaderboard(leaderboard) {
+            const leaderboardContainer = document.querySelector('.leaderboard');
+            if (!leaderboardContainer) return;
+            
+            // Keep the header, replace the content
+            const header = leaderboardContainer.querySelector('h3');
+            leaderboardContainer.innerHTML = '';
+            leaderboardContainer.appendChild(header);
+            
+            leaderboard.forEach((player, index) => {
+                const winRate = player.total > 0 ? (player.wins / player.total * 100).toFixed(1) : '0.0';
+                
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'leaderboard-item';
+                playerDiv.innerHTML = 
+                    '<div class="rank">#' + (index + 1) + '</div>' +
+                    '<div class="player-stats">' +
+                        '<div style="font-weight: bold;">' + player.name + '</div>' +
+                        '<div style="font-size: 0.9em; color: #666;">' +
+                            player.total + ' games • ' + player.wins + 'W ' + player.losses + 'L ' + player.draws + 'D' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="win-rate">' + winRate + '%</div>';
+                
+                leaderboardContainer.appendChild(playerDiv);
+            });
+        }
+
+        function updateRecentGames(recentGames) {
+            const recentContainer = document.querySelector('.recent-games');
+            if (!recentContainer) return;
+            
+            // Keep the header, replace the content
+            const header = recentContainer.querySelector('h3');
+            recentContainer.innerHTML = '';
+            recentContainer.appendChild(header);
+            
+            recentGames.forEach(game => {
+                const gameDiv = document.createElement('div');
+                gameDiv.className = 'game-item';
+                
+                const timestamp = new Date(game.timestamp).toLocaleTimeString('en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                
+                gameDiv.innerHTML = 
+                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                        '<div>' +
+                            '<strong>' + game.player_name + '</strong>: ' + game.player_move + ' vs ' + game.computer_move +
+                        '</div>' +
+                        '<span class="game-result ' + game.result + '">' + game.result.toUpperCase() + '</span>' +
+                    '</div>' +
+                    '<div style="font-size: 0.8em; color: #666; margin-top: 5px;">' +
+                        timestamp + ' • ' + game.player_ip +
+                    '</div>';
+                
+                recentContainer.appendChild(gameDiv);
+            });
+        }
+
         function playGame(playerMove) {
             const playerName = document.getElementById('playerName').value.trim();
             if (!playerName) {
@@ -333,10 +436,15 @@ const htmlTemplate = `
                     '<div>You: ' + moveIcons[data.player_move] + ' ' + data.player_move + ' | Computer: ' + moveIcons[data.computer_move] + ' ' + data.computer_move + '</div>' +
                     '</div>';
                 
-                // Refresh page after 2 seconds to show updated stats
+                // Update stats dynamically after game result
                 setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
+                    updateStats();
+                }, 500);
+                
+                // Hide result after showing for a few seconds
+                setTimeout(() => {
+                    resultDiv.style.display = 'none';
+                }, 3000);
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -344,12 +452,13 @@ const htmlTemplate = `
             });
         }
         
-        // Auto-refresh stats every 30 seconds
-        setInterval(() => {
-            if (document.getElementById('gameResult').style.display === 'none') {
-                window.location.reload();
-            }
-        }, 30000);
+        // Auto-update stats every 15 seconds (reduced from 30)
+        setInterval(updateStats, 15000);
+        
+        // Initial stats load
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(updateStats, 1000);
+        });
     </script>
 </body>
 </html>
@@ -357,7 +466,6 @@ const htmlTemplate = `
 
 func init() {
 	players = make(map[string]*Player)
-	rand.Seed(time.Now().UnixNano())
 }
 
 func main() {
@@ -427,14 +535,7 @@ func playHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Validate move
-	validMove := false
-	for _, move := range moves {
-		if request.PlayerMove == move {
-			validMove = true
-			break
-		}
-	}
-	if !validMove {
+	if !slices.Contains(moves, request.PlayerMove) {
 		http.Error(w, "Invalid move", http.StatusBadRequest)
 		return
 	}
@@ -517,20 +618,20 @@ func getClientIP(r *http.Request) string {
 	// Check X-Forwarded-For header first (for load balancers/proxies)
 	xForwardedFor := r.Header.Get("X-Forwarded-For")
 	if xForwardedFor != "" {
-		// X-Forwarded-For can contain multiple IPs, take the first one
-		ips := []string{}
-		for _, ip := range []string{xForwardedFor} {
-			ips = append(ips, ip)
-		}
-		if len(ips) > 0 {
-			return ips[0]
+		// X-Forwarded-For can contain a comma-separated list of IPs
+		parts := strings.Split(xForwardedFor, ",")
+		if len(parts) > 0 {
+			clientIP := strings.TrimSpace(parts[0])
+			if clientIP != "" {
+				return clientIP
+			}
 		}
 	}
 	
 	// Check X-Real-IP header
 	xRealIP := r.Header.Get("X-Real-IP")
 	if xRealIP != "" {
-		return xRealIP
+		return strings.TrimSpace(xRealIP)
 	}
 	
 	// Fall back to RemoteAddr
@@ -561,10 +662,7 @@ func getGameStats() GameStats {
 	
 	// Get recent games (last 10)
 	recentGames := make([]Game, 0)
-	start := len(games) - 10
-	if start < 0 {
-		start = 0
-	}
+	start := max(0, len(games)-10)
 	for i := len(games) - 1; i >= start; i-- {
 		recentGames = append(recentGames, games[i])
 	}
@@ -577,8 +675,13 @@ func getGameStats() GameStats {
 	
 	// Sort by win rate, then by total games
 	sort.Slice(leaderboard, func(i, j int) bool {
-		winRateI := float64(leaderboard[i].Wins) / float64(leaderboard[i].Total)
-		winRateJ := float64(leaderboard[j].Wins) / float64(leaderboard[j].Total)
+		var winRateI, winRateJ float64
+		if leaderboard[i].Total > 0 {
+			winRateI = float64(leaderboard[i].Wins) / float64(leaderboard[i].Total)
+		}
+		if leaderboard[j].Total > 0 {
+			winRateJ = float64(leaderboard[j].Wins) / float64(leaderboard[j].Total)
+		}
 		
 		if winRateI == winRateJ {
 			return leaderboard[i].Total > leaderboard[j].Total
