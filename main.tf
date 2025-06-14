@@ -64,6 +64,29 @@ resource "google_compute_subnetwork" "subnet" {
   }
 }
 
+# Create firewall rule for the VPI
+resource "google_compute_firewall" "allow_internal" {
+  name    = "${local.cluster_name}-allow-internal"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["0-65535"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["0-65535"]
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+
+  source_ranges = ["10.10.0.0/24", "10.36.0.0/14", "10.40.0.0/20"]
+  direction     = "INGRESS"
+}
+
 resource "google_container_cluster" "primary" {
   name     = "${local.cluster_name}-${random_string.random_suffix.result}"
   location = local.zone # Use zone instead of region for cost optimization
