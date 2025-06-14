@@ -662,7 +662,10 @@ func getGameStats() GameStats {
 	
 	// Get recent games (last 10)
 	recentGames := make([]Game, 0)
-	start := max(0, len(games)-10)
+start := len(games) - 10
+if start < 0 {
+	start = 0
+}
 	for i := len(games) - 1; i >= start; i-- {
 		recentGames = append(recentGames, games[i])
 	}
