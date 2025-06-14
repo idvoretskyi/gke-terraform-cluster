@@ -4,12 +4,8 @@ locals {
     try(data.external.gcloud_project.result.project_id, "") :
     "your-project-id-here"
   )
-  region = var.region != null && var.region != "" ? var.region : (
-    try(data.external.gcloud_region.result.region, "") != "" ?
-    try(data.external.gcloud_region.result.region, "") :
-    "us-central1"
-  )
-  zone         = "us-central1-a" # Use single zone for cost optimization
+  region = "us-central1" # Fixed region to match cluster zone
+  zone   = "us-central1-a" # Use single zone for cost optimization
   cluster_name = "${try(data.external.username.result.username, "default-user")}-${var.cluster_name_suffix}"
 }
 
@@ -122,9 +118,12 @@ resource "google_container_cluster" "primary" {
   # Enable private cluster configuration
   private_cluster_config {
     enable_private_nodes    = true
-    enable_private_endpoint = false
+    enable_private_endpoint = true
     master_ipv4_cidr_block  = "172.16.0.32/28"
   }
+
+  # Enable VPC Flow Logs and Intranode Visibility
+  enable_intranode_visibility = true
 
   # Configure IP allocation policy with alias IP ranges
   ip_allocation_policy {
@@ -211,6 +210,12 @@ resource "google_container_node_pool" "primary_nodes" {
     resource_labels = {
       environment = "development"
       cost-center = "dev"
+    }
+
+    # Enable Secure Boot for Shielded GKE Nodes
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
     }
   }
 
