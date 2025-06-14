@@ -60,23 +60,75 @@ curl http://EXTERNAL_IP/api/stats
 - Docker configured for GCR
 - kubectl configured for your cluster
 
-### Quick Deploy
+### Option 1: Using Makefile (Simplest)
+
 ```bash
-# Replace PROJECT_ID with your actual GCP project ID
+# Deploy with latest version
+make deploy PROJECT_ID=your-gcp-project-id
+
+# Deploy with specific version
+make deploy PROJECT_ID=your-gcp-project-id VERSION=v4.1.0
+
+# Deploy with auto-generated git version
+make auto-deploy PROJECT_ID=your-gcp-project-id
+
+# See all available commands
+make help
+```
+
+### Option 2: Automated Deployment Script
+
+```bash
+# Simple deployment with latest version
+./deploy.sh -p your-gcp-project-id
+
+# Deploy with specific version
+./deploy.sh -p your-gcp-project-id -v v4.1.0
+
+# Auto-generate version from git commit
+./deploy.sh -p your-gcp-project-id --auto-version
+
+# Build only (no deployment)
+./deploy.sh -p your-gcp-project-id --build-only
+
+# See all options
+./deploy.sh --help
+```
+
+### Option 3: Manual Deployment
+```bash
+# Set your configuration
 export PROJECT_ID=your-gcp-project-id
+export VERSION=${VERSION:-latest}  # Use latest by default, or set custom version
 
 # Build and push Docker image
 docker buildx build --platform linux/amd64 \
-  -t gcr.io/$PROJECT_ID/rock-paper-scissors-game:v3.0 . --push
+  -t gcr.io/$PROJECT_ID/rock-paper-scissors-game:$VERSION . --push
 
-# Update deployment.yaml with your project ID
+# Update deployment.yaml with your project ID and version
 sed -i "s/PROJECT_ID/$PROJECT_ID/g" deployment.yaml
+sed -i "s/VERSION_TAG/$VERSION/g" deployment.yaml
 
 # Deploy to Kubernetes
 kubectl apply -f deployment.yaml
 
 # Get external IP
 kubectl get svc rock-paper-scissors-service
+```
+
+#### Version Management Examples
+```bash
+# Use latest (default)
+export VERSION=latest
+
+# Use semantic versioning
+export VERSION=v4.0.1
+
+# Use git commit hash
+export VERSION=$(git rev-parse --short HEAD)
+
+# Use timestamp-based version
+export VERSION=$(date +%Y%m%d-%H%M%S)
 ```
 
 ### Access the Game
@@ -132,4 +184,101 @@ docker run -p 8080:8080 rock-paper-scissors-game
 - 🔔 Real-time notifications
 - 🏆 Tournaments and competitions
 - 📈 Advanced analytics and charts
+
+## 🚀 Production Deployment Enhancements
+
+### Advanced Kubernetes Features
+
+The enhanced deployment includes several production-ready features:
+
+#### 🔐 Security Enhancements
+- **Security Context**: Runs as non-root user with restricted capabilities
+- **Pod Security**: Read-only root filesystem, dropped capabilities
+- **Network Policies**: Ingress/egress traffic control
+- **Security Headers**: CSP, HSTS, XSS protection in HTTP responses
+
+#### 📈 Scalability & Reliability
+- **Horizontal Pod Autoscaler (HPA)**: Auto-scales based on CPU/memory usage
+- **Pod Disruption Budget (PDB)**: Ensures minimum availability during updates
+- **Rolling Updates**: Zero-downtime deployments with controlled rollout
+- **Pod Anti-Affinity**: Spreads pods across different nodes for high availability
+
+#### 🔍 Monitoring & Health Checks
+- **Startup Probe**: Handles slow-starting containers
+- **Liveness Probe**: Detects and restarts unhealthy containers
+- **Readiness Probe**: Controls traffic routing to healthy pods
+- **Graceful Shutdown**: Proper signal handling for clean termination
+
+#### ⚡ Performance Optimizations
+- **HTTP Compression**: Gzip compression for response bodies
+- **Template Caching**: Pre-parsed HTML templates for faster responses
+- **Request Logging**: Structured logging with timing information
+- **Resource Limits**: Defined CPU/memory limits for predictable performance
+
+### Environment-Specific Configurations
+
+#### Development Environment
+```bash
+# Use development settings
+cp terraform.tfvars.dev terraform.tfvars
+terraform plan
+terraform apply
+```
+
+#### Production Environment
+```bash
+# Use production settings
+cp terraform.tfvars.prod terraform.tfvars
+terraform plan
+terraform apply
+```
+
+### Deployment Monitoring
+
+Check deployment status:
+```bash
+# View deployment status
+kubectl get deployments,pods,services,hpa,pdb -o wide
+
+# Check pod autoscaling
+kubectl get hpa rock-paper-scissors-hpa -w
+
+# View application logs
+kubectl logs -f deployment/rock-paper-scissors-game
+
+# Check resource usage
+kubectl top pods -l app=rock-paper-scissors-game
+```
+
+### Troubleshooting
+
+Common issues and solutions:
+
+#### Pod Startup Issues
+```bash
+# Check pod events
+kubectl describe pod <pod-name>
+
+# Check startup probe
+kubectl logs <pod-name> --previous
+```
+
+#### Network Connectivity
+```bash
+# Test network policy
+kubectl exec -it <pod-name> -- wget -q -O- http://google.com
+
+# Check service endpoints
+kubectl get endpoints rock-paper-scissors-service
+```
+
+#### Resource Constraints
+```bash
+# Check resource usage
+kubectl top nodes
+kubectl top pods
+
+# View resource limits
+kubectl describe deployment rock-paper-scissors-game
+```
 

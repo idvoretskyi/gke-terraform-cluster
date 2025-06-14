@@ -1,17 +1,23 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -64,6 +70,7 @@ var (
 	mu        sync.RWMutex
 	moves     = []string{"rock", "paper", "scissors"}
 	statsCache *GameStatsCache
+	homeTemplate *template.Template // Add global template variable
 )
 
 
@@ -83,6 +90,26 @@ func init() {
 		},
 		LastUpdated: time.Now(),
 	}
+	
+	// Parse template once at startup with custom functions
+	funcMap := template.FuncMap{
+		"add": func(a, b int) int { return a + b },
+		"winRate": func(p Player) float64 {
+			if p.Total == 0 { return 0 }
+			return float64(p.Wins) / float64(p.Total) * 100
+		},
+		"upper": func(s string) string {
+			if s == "win" { return "WIN" }
+			if s == "loss" { return "LOSS" }
+			return "DRAW"
+		},
+	}
+	
+	var err error
+	homeTemplate, err = template.New("index.html").Funcs(funcMap).ParseFiles("./web/templates/index.html")
+	if err != nil {
+		log.Fatalf("Failed to parse template: %v", err)
+	}
 }
 
 func main() {
@@ -99,35 +126,44 @@ func main() {
 	http.HandleFunc("/api/stats", statsHandler)
 	http.HandleFunc("/health", healthHandler)
 
-	log.Printf("🎮 Rock Paper Scissors Arena starting on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	// Middleware
+	var handler http.Handler = http.DefaultServeMux
+	handler = requestLogger(handler)
+	handler = securityHeaders(handler)
+	handler = gzipHandler(handler)
+
+	// Graceful shutdown
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: handler,
+	}
+
+	go func() {
+		log.Printf("🎮 Rock Paper Scissors Arena starting on port %s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe(): %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	<-ch
+
+	log.Println("Shutting down server...")
+	if err := srv.Shutdown(context.Background()); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+	log.Println("Server exiting")
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	stats := getGameStats()
 	
-	funcMap := template.FuncMap{
-		"add": func(a, b int) int { return a + b },
-		"winRate": func(p Player) float64 {
-			if p.Total == 0 { return 0 }
-			return float64(p.Wins) / float64(p.Total) * 100
-		},
-		"upper": func(s string) string {
-			if s == "win" { return "WIN" }
-			if s == "loss" { return "LOSS" }
-			return "DRAW"
-		},
-	}
-	
-	tmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles("./web/templates/index.html")
-	if err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-		return
-	}
-	
 	w.Header().Set("Content-Type", "text/html")
-	err = tmpl.Execute(w, stats)
+	err := homeTemplate.Execute(w, stats)
 	if err != nil {
+		log.Printf("Template execution error: %v", err)
 		http.Error(w, "Template execution error", http.StatusInternalServerError)
 		return
 	}
@@ -388,5 +424,76 @@ func evictInactivePlayers() {
 			delete(players, activities[i].name)
 		}
 	}
+}
+
+// Middleware
+
+// requestLogger logs incoming requests
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+// securityHeaders adds security-related headers to the response
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "no-referrer-when-downgrade")
+		w.Header().Set("Permissions-Policy", "geolocation=(self), microphone=(), camera=()")
+		
+		// Content Security Policy (CSP) - adjust as needed
+		csp := "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline';"
+		w.Header().Set("Content-Security-Policy", csp)
+		
+		next.ServeHTTP(w, r)
+	})
+}
+
+// gzipHandler compresses response bodies with gzip
+func gzipHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Bypass compression if the client doesn't support it
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		
+		// Create a response writer that compresses the response
+		var buf bytes.Buffer
+		gzw := gzip.NewWriter(&buf)
+		defer gzw.Close()
+		
+		// Tee the response writer to capture the response size
+		tee := io.MultiWriter(w, gzw)
+		w = &responseWriter{ResponseWriter: w, Writer: tee}
+		
+		// Serve the request
+		next.ServeHTTP(w, r)
+		
+		// Close the gzip writer to flush the compressed data
+		gzw.Close()
+		
+		// Set the Content-Encoding header
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Vary", "Accept-Encoding")
+	})
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	io.Writer
+}
+
+func (rw *responseWriter) WriteHeader(statusCode int) {
+	rw.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	return rw.Writer.Write(b)
 }
 

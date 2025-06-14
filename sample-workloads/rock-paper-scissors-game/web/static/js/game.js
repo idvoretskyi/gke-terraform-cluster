@@ -1,6 +1,20 @@
 // Game state management
 let statsUpdateInProgress = false;
 
+// Utility function to safely create text nodes and elements
+function createTextElement(tag, text, className = null) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    element.textContent = text; // Always use textContent for user data
+    return element;
+}
+
+// Utility function to sanitize and validate data
+function sanitizePlayerName(name) {
+    if (typeof name !== 'string') return 'Unknown';
+    return name.trim().substring(0, 50); // Limit length and trim
+}
+
 // Update statistics from API
 function updateStats() {
     if (statsUpdateInProgress) return;
@@ -49,15 +63,35 @@ function updateLeaderboard(leaderboard) {
         
         const playerDiv = document.createElement('div');
         playerDiv.className = 'leaderboard-item';
-        playerDiv.innerHTML = 
-            '<div class="rank">#' + (index + 1) + '</div>' +
-            '<div class="player-stats">' +
-                '<div class="player-name">' + player.name + '</div>' +
-                '<div class="player-details">' +
-                    player.total + ' games • ' + player.wins + 'W ' + player.losses + 'L ' + player.draws + 'D' +
-                '</div>' +
-            '</div>' +
-            '<div class="win-rate">' + winRate + '%</div>';
+        
+        // Create rank element
+        const rankDiv = document.createElement('div');
+        rankDiv.className = 'rank';
+        rankDiv.textContent = '#' + (index + 1);
+        
+        // Create player stats container
+        const playerStatsDiv = document.createElement('div');
+        playerStatsDiv.className = 'player-stats';
+        
+        // Create player name element (sanitized)
+        const playerNameDiv = createTextElement('div', sanitizePlayerName(player.name), 'player-name');
+        
+        // Create player details element
+        const playerDetailsDiv = document.createElement('div');
+        playerDetailsDiv.className = 'player-details';
+        playerDetailsDiv.textContent = player.total + ' games • ' + player.wins + 'W ' + player.losses + 'L ' + player.draws + 'D';
+        
+        // Create win rate element
+        const winRateDiv = document.createElement('div');
+        winRateDiv.className = 'win-rate';
+        winRateDiv.textContent = winRate + '%';
+        
+        // Assemble the elements
+        playerStatsDiv.appendChild(playerNameDiv);
+        playerStatsDiv.appendChild(playerDetailsDiv);
+        playerDiv.appendChild(rankDiv);
+        playerDiv.appendChild(playerStatsDiv);
+        playerDiv.appendChild(winRateDiv);
         
         leaderboardContainer.appendChild(playerDiv);
     });
@@ -84,16 +118,34 @@ function updateRecentGames(recentGames) {
             second: '2-digit'
         });
         
-        gameDiv.innerHTML = 
-            '<div class="game-header">' +
-                '<div class="game-moves">' +
-                    '<strong>' + game.player_name + '</strong>: ' + game.player_move + ' vs ' + game.computer_move +
-                '</div>' +
-                '<span class="game-result ' + game.result + '">' + game.result.toUpperCase() + '</span>' +
-            '</div>' +
-            '<div class="game-meta">' +
-                timestamp + ' • ' + game.player_ip +
-            '</div>';
+        // Create game header container
+        const gameHeaderDiv = document.createElement('div');
+        gameHeaderDiv.className = 'game-header';
+        
+        // Create game moves element (sanitized)
+        const gameMovesDiv = document.createElement('div');
+        gameMovesDiv.className = 'game-moves';
+        
+        const playerNameStrong = createTextElement('strong', sanitizePlayerName(game.player_name));
+        
+        gameMovesDiv.appendChild(playerNameStrong);
+        gameMovesDiv.appendChild(document.createTextNode(': ' + game.player_move + ' vs ' + game.computer_move));
+        
+        // Create result element
+        const gameResultSpan = document.createElement('span');
+        gameResultSpan.className = 'game-result ' + game.result;
+        gameResultSpan.textContent = game.result.toUpperCase();
+        
+        // Create game meta element
+        const gameMetaDiv = document.createElement('div');
+        gameMetaDiv.className = 'game-meta';
+        gameMetaDiv.textContent = timestamp + ' • ' + game.player_ip;
+        
+        // Assemble the elements
+        gameHeaderDiv.appendChild(gameMovesDiv);
+        gameHeaderDiv.appendChild(gameResultSpan);
+        gameDiv.appendChild(gameHeaderDiv);
+        gameDiv.appendChild(gameMetaDiv);
         
         recentContainer.appendChild(gameDiv);
     });
@@ -109,7 +161,13 @@ function playGame(playerMove) {
     
     const resultDiv = document.getElementById('gameResult');
     resultDiv.classList.remove('hidden');
-    resultDiv.innerHTML = '<div style="color: #667eea;">🎲 Playing...</div>';
+    
+    // Clear previous content and add loading message safely
+    resultDiv.innerHTML = '';
+    const loadingDiv = document.createElement('div');
+    loadingDiv.style.color = '#667eea';
+    loadingDiv.textContent = '🎲 Playing...';
+    resultDiv.appendChild(loadingDiv);
     
     fetch('/play', {
         method: 'POST',
@@ -137,7 +195,11 @@ function playGame(playerMove) {
     })
     .catch(error => {
         console.error('Error:', error);
-        resultDiv.innerHTML = '<div style="color: red;">Error playing game. Please try again.</div>';
+        resultDiv.innerHTML = '';
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = 'red';
+        errorDiv.textContent = 'Error playing game. Please try again.';
+        resultDiv.appendChild(errorDiv);
     });
 }
 
@@ -151,12 +213,37 @@ function displayGameResult(data, resultDiv) {
         'scissors': '✂️'
     };
     
-    resultDiv.innerHTML = 
-        '<div class="' + resultClass + '" style="padding: 20px; border-radius: 10px;">' +
-        '<div style="font-size: 2em; margin-bottom: 10px;">' + resultIcon + '</div>' +
-        '<div style="font-size: 1.5em; margin-bottom: 10px;">' + data.result.toUpperCase() + '!</div>' +
-        '<div>You: ' + moveIcons[data.player_move] + ' ' + data.player_move + ' | Computer: ' + moveIcons[data.computer_move] + ' ' + data.computer_move + '</div>' +
-        '</div>';
+    // Clear previous content
+    resultDiv.innerHTML = '';
+    
+    // Create main result container
+    const resultContainer = document.createElement('div');
+    resultContainer.className = resultClass;
+    resultContainer.style.padding = '20px';
+    resultContainer.style.borderRadius = '10px';
+    
+    // Create icon element
+    const iconDiv = document.createElement('div');
+    iconDiv.style.fontSize = '2em';
+    iconDiv.style.marginBottom = '10px';
+    iconDiv.textContent = resultIcon;
+    
+    // Create result text element
+    const resultTextDiv = document.createElement('div');
+    resultTextDiv.style.fontSize = '1.5em';
+    resultTextDiv.style.marginBottom = '10px';
+    resultTextDiv.textContent = data.result.toUpperCase() + '!';
+    
+    // Create moves element
+    const movesDiv = document.createElement('div');
+    movesDiv.textContent = 'You: ' + moveIcons[data.player_move] + ' ' + data.player_move + 
+                          ' | Computer: ' + moveIcons[data.computer_move] + ' ' + data.computer_move;
+    
+    // Assemble the result
+    resultContainer.appendChild(iconDiv);
+    resultContainer.appendChild(resultTextDiv);
+    resultContainer.appendChild(movesDiv);
+    resultDiv.appendChild(resultContainer);
 }
 
 // Initialize the application

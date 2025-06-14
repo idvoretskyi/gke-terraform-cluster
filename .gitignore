@@ -43,3 +43,17 @@ Thumbs.db
 # kubectl config (if storing locally)
 kubeconfig
 *.kubeconfig
+
+# Go binaries and build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+rock-paper-scissors-game
+sample-workloads/rock-paper-scissors-game/rock-paper-scissors-game
+
+# Go test files
+*.test
+*.out
+go.sum
