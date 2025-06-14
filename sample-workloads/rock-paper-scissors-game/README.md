@@ -62,9 +62,15 @@ curl http://EXTERNAL_IP/api/stats
 
 ### Quick Deploy
 ```bash
+# Replace PROJECT_ID with your actual GCP project ID
+export PROJECT_ID=your-gcp-project-id
+
 # Build and push Docker image
 docker buildx build --platform linux/amd64 \
-  -t gcr.io/PROJECT_ID/rock-paper-scissors-game:v2.0 . --push
+  -t gcr.io/$PROJECT_ID/rock-paper-scissors-game:v2.0 . --push
+
+# Update deployment.yaml with your project ID
+sed -i "s/PROJECT_ID/$PROJECT_ID/g" deployment.yaml
 
 # Deploy to Kubernetes
 kubectl apply -f deployment.yaml
@@ -126,3 +132,4 @@ docker run -p 8080:8080 rock-paper-scissors-game
 - 🔔 Real-time notifications
 - 🏆 Tournaments and competitions
 - 📈 Advanced analytics and charts
+
