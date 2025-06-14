@@ -1,15 +1,13 @@
 locals {
+  # Use variable if provided, otherwise try gcloud, fallback to default
   project_id = var.project_id != null && var.project_id != "" ? var.project_id : (
     try(data.external.gcloud_project.result.project_id, "") != "" ?
     try(data.external.gcloud_project.result.project_id, "") :
     "your-project-id-here"
   )
-  region = var.region != null && var.region != "" ? var.region : (
-    try(data.external.gcloud_region.result.region, "") != "" ?
-    try(data.external.gcloud_region.result.region, "") :
-    "us-central1"
-  )
-  zone         = "us-central1-a" # Use single zone for cost optimization
+  region = "us-central1"   # Fixed region to match cluster zone
+  zone   = "us-central1-a" # Use single zone for cost optimization
+  # Use username from data source if available, otherwise fallback
   cluster_name = "${try(data.external.username.result.username, "default-user")}-${var.cluster_name_suffix}"
 }
 
@@ -31,6 +29,62 @@ resource "random_string" "random_suffix" {
   special = false
 }
 
+# Create VPC network with flow logs enabled
+resource "google_compute_network" "vpc" {
+  name                    = "${local.cluster_name}-vpc"
+  auto_create_subnetworks = false
+}
+
+# Create subnet with VPC flow logs and private Google access
+resource "google_compute_subnetwork" "subnet" {
+  name          = "${local.cluster_name}-subnet"
+  ip_cidr_range = "10.10.0.0/24"
+  region        = local.region
+  network       = google_compute_network.vpc.name
+
+  private_ip_google_access = true
+
+  # Enable VPC Flow Logs and intranode visibility
+  log_config {
+    aggregation_interval = "INTERVAL_10_MIN"
+    flow_sampling        = 0.5
+    metadata             = "INCLUDE_ALL_METADATA"
+  }
+
+  secondary_ip_range {
+    range_name    = "services-range"
+    ip_cidr_range = "10.40.0.0/20"
+  }
+
+  secondary_ip_range {
+    range_name    = "pod-ranges"
+    ip_cidr_range = "10.36.0.0/14"
+  }
+}
+
+# Create firewall rule for the VPI
+resource "google_compute_firewall" "allow_internal" {
+  name    = "${local.cluster_name}-allow-internal"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["0-65535"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["0-65535"]
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+
+  source_ranges = ["10.10.0.0/24", "10.36.0.0/14", "10.40.0.0/20"]
+  direction     = "INGRESS"
+}
+
 resource "google_container_cluster" "primary" {
   name     = "${local.cluster_name}-${random_string.random_suffix.result}"
   location = local.zone # Use zone instead of region for cost optimization
@@ -38,11 +92,68 @@ resource "google_container_cluster" "primary" {
   # Set deletion protection to false to allow deletion of the cluster
   deletion_protection = false
 
+  # Configure network and subnetwork
+  network    = google_compute_network.vpc.name
+  subnetwork = google_compute_subnetwork.subnet.name
+
   release_channel {
     channel = "RAPID" # Use RAPID for most recent Kubernetes version
   }
 
   remove_default_node_pool = true
+
+  # Add resource labels for better resource management
+  resource_labels = {
+    environment = "development"
+    cost-center = "dev"
+    managed-by  = "terraform"
+  }
+
+  # Configure master authorized networks for security
+  master_authorized_networks_config {
+    cidr_blocks {
+      cidr_block   = "0.0.0.0/0"
+      display_name = "All networks - development only"
+    }
+  }
+
+  # Enable private cluster configuration
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = true
+    master_ipv4_cidr_block  = "172.16.0.32/28"
+  }
+
+  # Enable VPC Flow Logs and Intranode Visibility
+  enable_intranode_visibility = true
+
+  # Configure IP allocation policy with alias IP ranges
+  ip_allocation_policy {
+    cluster_secondary_range_name  = "pod-ranges"
+    services_secondary_range_name = "services-range"
+  }
+
+  # Enable network policy for enhanced security
+  network_policy {
+    enabled = true
+  }
+
+  # Disable client certificate authentication
+  master_auth {
+    client_certificate_config {
+      issue_client_certificate = false
+    }
+  }
+
+  # Enable Binary Authorization for container security
+  binary_authorization {
+    evaluation_mode = "PROJECT_SINGLETON_POLICY_ENFORCE"
+  }
+
+  # Configure Google Groups for RBAC management
+  authenticator_groups_config {
+    security_group = "gke-security-groups@${local.project_id}.iam.gserviceaccount.com"
+  }
 
   # Enable cluster autoscaling
   cluster_autoscaling {
@@ -85,6 +196,11 @@ resource "google_container_node_pool" "primary_nodes" {
       disable-legacy-endpoints = "true"
     }
 
+    # Enable workload identity and GKE metadata server
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
+
     # Minimal OAuth scopes for cost optimization
     oauth_scopes = [
       "https://www.googleapis.com/auth/devstorage.read_only",
@@ -96,6 +212,12 @@ resource "google_container_node_pool" "primary_nodes" {
     resource_labels = {
       environment = "development"
       cost-center = "dev"
+    }
+
+    # Enable Secure Boot for Shielded GKE Nodes
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
     }
   }
 
