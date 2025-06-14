@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: go-ip-app
+  name: rock-paper-scissors-game
   labels:
-    app: go-ip-app
+    app: rock-paper-scissors-game
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: go-ip-app
+      app: rock-paper-scissors-game
   template:
     metadata:
       labels:
-        app: go-ip-app
+        app: rock-paper-scissors-game
     spec:
       containers:
-      - name: go-ip-app
-        image: gcr.io/idv-dev-0/go-ip-app:latest
+      - name: rock-paper-scissors-game
+        image: gcr.io/idv-dev-0/rock-paper-scissors-game:latest
         ports:
         - containerPort: 8080
         env:
@@ -36,18 +36,18 @@ spec:
           periodSeconds: 5
         resources:
           requests:
-            memory: "64Mi"
-            cpu: "50m"
-          limits:
             memory: "128Mi"
             cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: go-ip-app-service
+  name: rock-paper-scissors-service
   labels:
-    app: go-ip-app
+    app: rock-paper-scissors-game
 spec:
   type: LoadBalancer
   ports:
@@ -55,4 +55,4 @@ spec:
     targetPort: 8080
     protocol: TCP
   selector:
-    app: go-ip-app
+    app: rock-paper-scissors-game
