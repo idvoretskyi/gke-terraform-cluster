@@ -1,0 +1,43 @@
+# Development environment configuration
+# Copy this file to terraform.tfvars and customize as needed
+
+# Required variables
+# project_id = "your-gcp-project-id"  # Optional: Override auto-detected project
+
+# Environment configuration
+environment = "dev"
+
+# Cluster configuration
+region                = "us-central1"
+cluster_name_suffix   = "dev-cluster"
+release_channel       = "REGULAR"
+
+# Node pool configuration
+machine_type         = "e2-micro"
+min_nodes           = 1
+max_nodes           = 3
+node_pool_disk_size = 20
+node_pool_disk_type = "pd-standard"
+enable_spot_instances = true
+
+# Security configuration (development settings)
+enable_private_cluster      = true
+enable_private_endpoint     = false  # Set to true if using bastion/VPN
+enable_network_policy       = true
+enable_binary_authorization = false  # Can be complex for development
+
+# Authorized networks (adjust as needed)
+master_authorized_networks = [
+  {
+    cidr_block   = "0.0.0.0/0"
+    display_name = "All networks - development only"
+  }
+]
+
+# Resource labels
+resource_labels = {
+  managed-by  = "terraform"
+  team        = "development"
+  project     = "rock-paper-scissors"
+  cost-center = "dev"
+}

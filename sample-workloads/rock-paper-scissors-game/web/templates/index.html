@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🎮 Rock Paper Scissors Arena</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Rock Paper Scissors Arena</h1>
+            <p>Challenge the computer and climb the leaderboard!</p>
+        </div>
+        
+        <div class="game-section">
+            <h2 class="game-title">Play Game</h2>
+            <div class="player-input">
+                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+            </div>
+            <div class="move-buttons">
+                <button class="move-btn rock" onclick="playGame('rock')">🪨</button>
+                <button class="move-btn paper" onclick="playGame('paper')">📄</button>
+                <button class="move-btn scissors" onclick="playGame('scissors')">✂️</button>
+            </div>
+            <div id="gameResult" class="result-display hidden"></div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{.TotalGames}}</div>
+                <div class="stat-label">Total Games Played</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{.TotalPlayers}}</div>
+                <div class="stat-label">Active Players</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{index .MoveStats "rock"}}</div>
+                <div class="stat-label">🪨 Rock Played</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{index .MoveStats "paper"}}</div>
+                <div class="stat-label">📄 Paper Played</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{index .MoveStats "scissors"}}</div>
+                <div class="stat-label">✂️ Scissors Played</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{index .WinStats "win"}}</div>
+                <div class="stat-label">🏆 Player Wins</div>
+            </div>
+        </div>
+        
+        <div class="content-grid">
+            <div class="leaderboard">
+                <h3 class="section-title">🏆 Leaderboard</h3>
+                {{range $index, $player := .Leaderboard}}
+                <div class="leaderboard-item">
+                    <div class="rank">#{{add $index 1}}</div>
+                    <div class="player-stats">
+                        <div class="player-name">{{$player.Name}}</div>
+                        <div class="player-details">
+                            {{$player.Total}} games • {{$player.Wins}}W {{$player.Losses}}L {{$player.Draws}}D
+                        </div>
+                    </div>
+                    <div class="win-rate">{{printf "%.1f" (winRate $player)}}%</div>
+                </div>
+                {{end}}
+            </div>
+            
+            <div class="recent-games">
+                <h3 class="section-title">📋 Recent Games</h3>
+                {{range .RecentGames}}
+                <div class="game-item">
+                    <div class="game-header">
+                        <div class="game-moves">
+                            <strong>{{.PlayerName}}</strong>: {{.PlayerMove}} vs {{.ComputerMove}}
+                        </div>
+                        <span class="game-result {{.Result}}">{{upper .Result}}</span>
+                    </div>
+                    <div class="game-meta">
+                        {{.Timestamp.Format "15:04:05"}} • {{.PlayerIP}}
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/js/game.js"></script>
+</body>
+</html>

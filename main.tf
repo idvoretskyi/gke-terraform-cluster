@@ -97,31 +97,39 @@ resource "google_container_cluster" "primary" {
   subnetwork = google_compute_subnetwork.subnet.name
 
   release_channel {
-    channel = "RAPID" # Use RAPID for most recent Kubernetes version
+    channel = var.release_channel
   }
 
   remove_default_node_pool = true
 
   # Add resource labels for better resource management
-  resource_labels = {
-    environment = "development"
-    cost-center = "dev"
-    managed-by  = "terraform"
-  }
+  resource_labels = merge(var.resource_labels, {
+    environment = var.environment
+    cost-center = var.environment
+  })
 
   # Configure master authorized networks for security
-  master_authorized_networks_config {
-    cidr_blocks {
-      cidr_block   = "0.0.0.0/0"
-      display_name = "All networks - development only"
+  dynamic "master_authorized_networks_config" {
+    for_each = length(var.master_authorized_networks) > 0 ? [1] : []
+    content {
+      dynamic "cidr_blocks" {
+        for_each = var.master_authorized_networks
+        content {
+          cidr_block   = cidr_blocks.value.cidr_block
+          display_name = cidr_blocks.value.display_name
+        }
+      }
     }
   }
 
   # Enable private cluster configuration
-  private_cluster_config {
-    enable_private_nodes    = true
-    enable_private_endpoint = true
-    master_ipv4_cidr_block  = "172.16.0.32/28"
+  dynamic "private_cluster_config" {
+    for_each = var.enable_private_cluster ? [1] : []
+    content {
+      enable_private_nodes    = true
+      enable_private_endpoint = var.enable_private_endpoint
+      master_ipv4_cidr_block  = "172.16.0.32/28"
+    }
   }
 
   # Enable VPC Flow Logs and Intranode Visibility
@@ -134,8 +142,11 @@ resource "google_container_cluster" "primary" {
   }
 
   # Enable network policy for enhanced security
-  network_policy {
-    enabled = true
+  dynamic "network_policy" {
+    for_each = var.enable_network_policy ? [1] : []
+    content {
+      enabled = true
+    }
   }
 
   # Disable client certificate authentication
@@ -146,8 +157,11 @@ resource "google_container_cluster" "primary" {
   }
 
   # Enable Binary Authorization for container security
-  binary_authorization {
-    evaluation_mode = "PROJECT_SINGLETON_POLICY_ENFORCE"
+  dynamic "binary_authorization" {
+    for_each = var.enable_binary_authorization ? [1] : []
+    content {
+      evaluation_mode = "PROJECT_SINGLETON_POLICY_ENFORCE"
+    }
   }
 
   # Configure Google Groups for RBAC management
@@ -188,9 +202,9 @@ resource "google_container_node_pool" "primary_nodes" {
 
   node_config {
     machine_type = var.machine_type
-    spot         = true          # Use spot instances for maximum cost savings
-    disk_size_gb = 20            # Reduce disk size for cost savings
-    disk_type    = "pd-standard" # Use standard disks instead of SSD
+    spot         = var.enable_spot_instances
+    disk_size_gb = var.node_pool_disk_size
+    disk_type    = var.node_pool_disk_type
 
     metadata = {
       disable-legacy-endpoints = "true"
@@ -209,10 +223,10 @@ resource "google_container_node_pool" "primary_nodes" {
     ]
 
     # Resource constraints for cost control
-    resource_labels = {
-      environment = "development"
-      cost-center = "dev"
-    }
+    resource_labels = merge(var.resource_labels, {
+      environment = var.environment
+      cost-center = var.environment
+    })
 
     # Enable Secure Boot for Shielded GKE Nodes
     shielded_instance_config {

@@ -1,0 +1,53 @@
+# Production environment configuration
+# Copy this file to terraform.tfvars and customize as needed
+
+# Required variables
+# project_id = "your-production-gcp-project-id"
+
+# Environment configuration
+environment = "prod"
+
+# Cluster configuration
+region                = "us-central1"
+cluster_name_suffix   = "prod-cluster"
+release_channel       = "REGULAR"  # Use REGULAR for stability in production
+
+# Node pool configuration
+machine_type         = "e2-standard-2"  # Larger instances for production
+min_nodes           = 2
+max_nodes           = 10
+node_pool_disk_size = 50
+node_pool_disk_type = "pd-balanced"  # Better performance than pd-standard
+enable_spot_instances = false  # Use regular instances for production stability
+
+# Security configuration (production settings)
+enable_private_cluster      = true
+enable_private_endpoint     = true   # Enhanced security for production
+enable_network_policy       = true
+enable_binary_authorization = true   # Enhanced container security
+
+# Authorized networks (restrict to known networks)
+master_authorized_networks = [
+  {
+    cidr_block   = "10.0.0.0/8"
+    display_name = "Internal networks"
+  },
+  {
+    cidr_block   = "172.16.0.0/12"
+    display_name = "Private networks"
+  }
+  # Add your office/VPN networks here
+  # {
+  #   cidr_block   = "203.0.113.0/24"
+  #   display_name = "Office network"
+  # }
+]
+
+# Resource labels
+resource_labels = {
+  managed-by  = "terraform"
+  team        = "platform"
+  project     = "rock-paper-scissors"
+  cost-center = "production"
+  environment = "prod"
+}
