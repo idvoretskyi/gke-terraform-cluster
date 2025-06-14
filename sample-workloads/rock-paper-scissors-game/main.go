@@ -26,11 +26,12 @@ type Game struct {
 }
 
 type Player struct {
-	Name   string `json:"name"`
-	Wins   int    `json:"wins"`
-	Losses int    `json:"losses"`
-	Draws  int    `json:"draws"`
-	Total  int    `json:"total"`
+	Name       string    `json:"name"`
+	Wins       int       `json:"wins"`
+	Losses     int       `json:"losses"`
+	Draws      int       `json:"draws"`
+	Total      int       `json:"total"`
+	LastActive time.Time `json:"last_active"`
 }
 
 type GameStats struct {
@@ -42,430 +43,46 @@ type GameStats struct {
 	WinStats      map[string]int     `json:"win_stats"`
 }
 
-var (
-	games    []Game
-	players  map[string]*Player
-	gameID   int
-	mu       sync.RWMutex
-	moves    = []string{"rock", "paper", "scissors"}
+type GameStatsCache struct {
+	TotalGames   int
+	MoveStats    map[string]int
+	WinStats     map[string]int
+	LastUpdated  time.Time
+	mu           sync.RWMutex
+}
+
+const (
+	maxGamesHistory           = 1000         // Keep last 1000 games to prevent memory growth
+	maxPlayers               = 500          // Maximum number of players to keep in memory
+	playerInactivityDuration = 24 * time.Hour // Remove players inactive for 24 hours
 )
 
-const htmlTemplate = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>🎮 Rock Paper Scissors Arena</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        .container { 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            font-size: 3em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        .game-section {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        .move-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin: 20px 0;
-        }
-        .move-btn {
-            font-size: 4em;
-            width: 120px;
-            height: 120px;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-        .move-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-        }
-        .rock { background: linear-gradient(145deg, #ff6b6b, #ee5a5a); }
-        .paper { background: linear-gradient(145deg, #4ecdc4, #45b7b8); }
-        .scissors { background: linear-gradient(145deg, #ffe66d, #ffcc02); }
-        
-        .player-input {
-            margin: 20px 0;
-            text-align: center;
-        }
-        .player-input input {
-            padding: 12px 20px;
-            font-size: 16px;
-            border: 2px solid #ddd;
-            border-radius: 25px;
-            width: 250px;
-            text-align: center;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        .stat-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 5px solid #667eea;
-        }
-        .stat-value {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .leaderboard, .recent-games {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        .leaderboard h3, .recent-games h3 {
-            color: #667eea;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-        }
-        .leaderboard-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            margin: 5px 0;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .rank {
-            font-weight: bold;
-            color: #667eea;
-            width: 30px;
-        }
-        .player-stats {
-            flex: 1;
-            margin-left: 15px;
-        }
-        .win-rate {
-            font-weight: bold;
-            color: #28a745;
-        }
-        
-        .game-item {
-            background: #f8f9fa;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-        .game-result {
-            font-weight: bold;
-            padding: 5px 10px;
-            border-radius: 15px;
-            color: white;
-        }
-        .win { background: #28a745; }
-        .loss { background: #dc3545; }
-        .draw { background: #ffc107; color: #333; }
-        
-        .result-display {
-            text-align: center;
-            margin: 20px 0;
-            padding: 20px;
-            border-radius: 10px;
-            font-size: 1.2em;
-        }
-        
-        @media (max-width: 768px) {
-            .move-buttons { flex-direction: column; align-items: center; }
-            .move-btn { width: 100px; height: 100px; font-size: 3em; }
-            .stats-grid { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎮 Rock Paper Scissors Arena</h1>
-            <p>Challenge the computer and climb the leaderboard!</p>
-        </div>
-        
-        <div class="game-section">
-            <h2 style="text-align: center; margin-bottom: 20px;">Play Game</h2>
-            <div class="player-input">
-                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
-            </div>
-            <div class="move-buttons">
-                <button class="move-btn rock" onclick="playGame('rock')">🪨</button>
-                <button class="move-btn paper" onclick="playGame('paper')">📄</button>
-                <button class="move-btn scissors" onclick="playGame('scissors')">✂️</button>
-            </div>
-            <div id="gameResult" class="result-display" style="display: none;"></div>
-        </div>
-        
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">{{.TotalGames}}</div>
-                <div>Total Games Played</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{.TotalPlayers}}</div>
-                <div>Active Players</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{index .MoveStats "rock"}}</div>
-                <div>🪨 Rock Played</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{index .MoveStats "paper"}}</div>
-                <div>📄 Paper Played</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{index .MoveStats "scissors"}}</div>
-                <div>✂️ Scissors Played</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{index .WinStats "win"}}</div>
-                <div>🏆 Player Wins</div>
-            </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div class="leaderboard">
-                <h3>🏆 Leaderboard</h3>
-                {{range $index, $player := .Leaderboard}}
-                <div class="leaderboard-item">
-                    <div class="rank">#{{add $index 1}}</div>
-                    <div class="player-stats">
-                        <div style="font-weight: bold;">{{$player.Name}}</div>
-                        <div style="font-size: 0.9em; color: #666;">
-                            {{$player.Total}} games • {{$player.Wins}}W {{$player.Losses}}L {{$player.Draws}}D
-                        </div>
-                    </div>
-                    <div class="win-rate">{{printf "%.1f" (winRate $player)}}%</div>
-                </div>
-                {{end}}
-            </div>
-            
-            <div class="recent-games">
-                <h3>📋 Recent Games</h3>
-                {{range .RecentGames}}
-                <div class="game-item">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>{{.PlayerName}}</strong>: {{.PlayerMove}} vs {{.ComputerMove}}
-                        </div>
-                        <span class="game-result {{.Result}}">{{upper .Result}}</span>
-                    </div>
-                    <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
-                        {{.Timestamp.Format "15:04:05"}} • {{.PlayerIP}}
-                    </div>
-                </div>
-                {{end}}
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        let statsUpdateInProgress = false;
+var (
+	games     []Game
+	players   map[string]*Player
+	gameID    int
+	mu        sync.RWMutex
+	moves     = []string{"rock", "paper", "scissors"}
+	statsCache *GameStatsCache
+)
 
-        function updateStats() {
-            if (statsUpdateInProgress) return;
-            statsUpdateInProgress = true;
-            
-            fetch('/api/stats')
-                .then(response => response.json())
-                .then(stats => {
-                    // Update stat cards
-                    updateStatCards(stats);
-                    
-                    // Update leaderboard
-                    updateLeaderboard(stats.leaderboard);
-                    
-                    // Update recent games
-                    updateRecentGames(stats.recent_games);
-                })
-                .catch(error => {
-                    console.error('Error updating stats:', error);
-                })
-                .finally(() => {
-                    statsUpdateInProgress = false;
-                });
-        }
-
-        function updateStatCards(stats) {
-            const statValues = document.querySelectorAll('.stat-value');
-            if (statValues.length >= 6) {
-                statValues[0].textContent = stats.total_games;
-                statValues[1].textContent = stats.total_players;
-                statValues[2].textContent = stats.move_stats.rock || 0;
-                statValues[3].textContent = stats.move_stats.paper || 0;
-                statValues[4].textContent = stats.move_stats.scissors || 0;
-                statValues[5].textContent = stats.win_stats.win || 0;
-            }
-        }
-
-        function updateLeaderboard(leaderboard) {
-            const leaderboardContainer = document.querySelector('.leaderboard');
-            if (!leaderboardContainer) return;
-            
-            // Keep the header, replace the content
-            const header = leaderboardContainer.querySelector('h3');
-            leaderboardContainer.innerHTML = '';
-            leaderboardContainer.appendChild(header);
-            
-            leaderboard.forEach((player, index) => {
-                const winRate = player.total > 0 ? (player.wins / player.total * 100).toFixed(1) : '0.0';
-                
-                const playerDiv = document.createElement('div');
-                playerDiv.className = 'leaderboard-item';
-                playerDiv.innerHTML = 
-                    '<div class="rank">#' + (index + 1) + '</div>' +
-                    '<div class="player-stats">' +
-                        '<div style="font-weight: bold;">' + player.name + '</div>' +
-                        '<div style="font-size: 0.9em; color: #666;">' +
-                            player.total + ' games • ' + player.wins + 'W ' + player.losses + 'L ' + player.draws + 'D' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="win-rate">' + winRate + '%</div>';
-                
-                leaderboardContainer.appendChild(playerDiv);
-            });
-        }
-
-        function updateRecentGames(recentGames) {
-            const recentContainer = document.querySelector('.recent-games');
-            if (!recentContainer) return;
-            
-            // Keep the header, replace the content
-            const header = recentContainer.querySelector('h3');
-            recentContainer.innerHTML = '';
-            recentContainer.appendChild(header);
-            
-            recentGames.forEach(game => {
-                const gameDiv = document.createElement('div');
-                gameDiv.className = 'game-item';
-                
-                const timestamp = new Date(game.timestamp).toLocaleTimeString('en-US', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
-                
-                gameDiv.innerHTML = 
-                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
-                        '<div>' +
-                            '<strong>' + game.player_name + '</strong>: ' + game.player_move + ' vs ' + game.computer_move +
-                        '</div>' +
-                        '<span class="game-result ' + game.result + '">' + game.result.toUpperCase() + '</span>' +
-                    '</div>' +
-                    '<div style="font-size: 0.8em; color: #666; margin-top: 5px;">' +
-                        timestamp + ' • ' + game.player_ip +
-                    '</div>';
-                
-                recentContainer.appendChild(gameDiv);
-            });
-        }
-
-        function playGame(playerMove) {
-            const playerName = document.getElementById('playerName').value.trim();
-            if (!playerName) {
-                alert('Please enter your name first!');
-                return;
-            }
-            
-            const resultDiv = document.getElementById('gameResult');
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = '<div style="color: #667eea;">🎲 Playing...</div>';
-            
-            fetch('/play', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    player_name: playerName,
-                    player_move: playerMove
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                let resultClass = data.result;
-                let resultIcon = data.result === 'win' ? '🎉' : data.result === 'loss' ? '😢' : '🤝';
-                let moveIcons = {
-                    'rock': '🪨',
-                    'paper': '📄', 
-                    'scissors': '✂️'
-                };
-                
-                resultDiv.innerHTML = 
-                    '<div class="' + resultClass + '" style="padding: 20px; border-radius: 10px;">' +
-                    '<div style="font-size: 2em; margin-bottom: 10px;">' + resultIcon + '</div>' +
-                    '<div style="font-size: 1.5em; margin-bottom: 10px;">' + data.result.toUpperCase() + '!</div>' +
-                    '<div>You: ' + moveIcons[data.player_move] + ' ' + data.player_move + ' | Computer: ' + moveIcons[data.computer_move] + ' ' + data.computer_move + '</div>' +
-                    '</div>';
-                
-                // Update stats dynamically after game result
-                setTimeout(() => {
-                    updateStats();
-                }, 500);
-                
-                // Hide result after showing for a few seconds
-                setTimeout(() => {
-                    resultDiv.style.display = 'none';
-                }, 3000);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                resultDiv.innerHTML = '<div style="color: red;">Error playing game. Please try again.</div>';
-            });
-        }
-        
-        // Auto-update stats every 15 seconds (reduced from 30)
-        setInterval(updateStats, 15000);
-        
-        // Initial stats load
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(updateStats, 1000);
-        });
-    </script>
-</body>
-</html>
-`
 
 func init() {
 	players = make(map[string]*Player)
+	statsCache = &GameStatsCache{
+		TotalGames: 0,
+		MoveStats: map[string]int{
+			"rock":     0,
+			"paper":    0,
+			"scissors": 0,
+		},
+		WinStats: map[string]int{
+			"win":  0,
+			"loss": 0,
+			"draw": 0,
+		},
+		LastUpdated: time.Now(),
+	}
 }
 
 func main() {
@@ -473,6 +90,9 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+
+	// Serve static files
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static/"))))
 
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/play", playHandler)
@@ -499,7 +119,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	
-	tmpl, err := template.New("game").Funcs(funcMap).Parse(htmlTemplate)
+	tmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles("./web/templates/index.html")
 	if err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 		return
@@ -563,6 +183,12 @@ func playHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	games = append(games, game)
 	
+	// Cap games history to prevent indefinite memory growth
+	if len(games) > maxGamesHistory {
+		// Keep only the last maxGamesHistory games
+		games = games[len(games)-maxGamesHistory:]
+	}
+	
 	// Update player stats
 	player, exists := players[request.PlayerName]
 	if !exists {
@@ -571,6 +197,7 @@ func playHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	player.Total++
+	player.LastActive = time.Now()
 	switch result {
 	case "win":
 		player.Wins++
@@ -579,6 +206,12 @@ func playHandler(w http.ResponseWriter, r *http.Request) {
 	case "draw":
 		player.Draws++
 	}
+	
+	// Update stats cache incrementally
+	updateStatsCache(game)
+	
+	// Evict inactive players if we have too many
+	evictInactivePlayers()
 	mu.Unlock()
 	
 	// Return game result
@@ -642,30 +275,22 @@ func getGameStats() GameStats {
 	mu.RLock()
 	defer mu.RUnlock()
 	
-	// Calculate move statistics
-	moveStats := map[string]int{
-		"rock":     0,
-		"paper":    0,
-		"scissors": 0,
+	// Use cached stats for performance
+	statsCache.mu.RLock()
+	moveStats := make(map[string]int)
+	for k, v := range statsCache.MoveStats {
+		moveStats[k] = v
 	}
-	
-	winStats := map[string]int{
-		"win":  0,
-		"loss": 0,
-		"draw": 0,
+	winStats := make(map[string]int)
+	for k, v := range statsCache.WinStats {
+		winStats[k] = v
 	}
-	
-	for _, game := range games {
-		moveStats[game.PlayerMove]++
-		winStats[game.Result]++
-	}
+	totalGames := statsCache.TotalGames
+	statsCache.mu.RUnlock()
 	
 	// Get recent games (last 10)
 	recentGames := make([]Game, 0)
-start := len(games) - 10
-if start < 0 {
-	start = 0
-}
+	start := max(0, len(games)-10)
 	for i := len(games) - 1; i >= start; i-- {
 		recentGames = append(recentGames, games[i])
 	}
@@ -698,7 +323,7 @@ if start < 0 {
 	}
 	
 	return GameStats{
-		TotalGames:   len(games),
+		TotalGames:   totalGames,
 		TotalPlayers: len(players),
 		RecentGames:  recentGames,
 		Leaderboard:  leaderboard,
@@ -706,3 +331,62 @@ if start < 0 {
 		WinStats:     winStats,
 	}
 }
+
+// updateStatsCache incrementally updates the stats cache when a game is played
+// Note: This function assumes the caller holds the write lock (mu.Lock())
+func updateStatsCache(game Game) {
+	statsCache.mu.Lock()
+	defer statsCache.mu.Unlock()
+	
+	statsCache.TotalGames++
+	statsCache.MoveStats[game.PlayerMove]++
+	statsCache.WinStats[game.Result]++
+	statsCache.LastUpdated = time.Now()
+}
+
+// evictInactivePlayers removes inactive players to prevent memory growth
+// Note: This function assumes the caller holds the write lock (mu.Lock())
+func evictInactivePlayers() {
+	if len(players) <= maxPlayers {
+		return
+	}
+	
+	now := time.Now()
+	cutoff := now.Add(-playerInactivityDuration)
+	
+	// First, remove players inactive beyond the cutoff
+	for name, player := range players {
+		if player.LastActive.Before(cutoff) {
+			delete(players, name)
+		}
+	}
+	
+	// If still too many players, remove the least recently active ones
+	if len(players) > maxPlayers {
+		type playerActivity struct {
+			name       string
+			lastActive time.Time
+		}
+		
+		// Collect all players with their last activity
+		activities := make([]playerActivity, 0, len(players))
+		for name, player := range players {
+			activities = append(activities, playerActivity{
+				name:       name,
+				lastActive: player.LastActive,
+			})
+		}
+		
+		// Sort by last activity (oldest first)
+		sort.Slice(activities, func(i, j int) bool {
+			return activities[i].lastActive.Before(activities[j].lastActive)
+		})
+		
+		// Remove the oldest players until we're under the limit
+		playersToRemove := len(players) - maxPlayers
+		for i := 0; i < playersToRemove; i++ {
+			delete(players, activities[i].name)
+		}
+	}
+}
+

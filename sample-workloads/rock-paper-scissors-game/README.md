@@ -67,7 +67,7 @@ export PROJECT_ID=your-gcp-project-id
 
 # Build and push Docker image
 docker buildx build --platform linux/amd64 \
-  -t gcr.io/$PROJECT_ID/rock-paper-scissors-game:v2.0 . --push
+  -t gcr.io/$PROJECT_ID/rock-paper-scissors-game:v3.0 . --push
 
 # Update deployment.yaml with your project ID
 sed -i "s/PROJECT_ID/$PROJECT_ID/g" deployment.yaml

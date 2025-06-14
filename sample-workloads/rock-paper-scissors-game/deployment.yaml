@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: rock-paper-scissors-game
-        image: gcr.io/PROJECT_ID/rock-paper-scissors-game:v2.0
+        image: gcr.io/PROJECT_ID/rock-paper-scissors-game:v4.0
         ports:
         - containerPort: 8080
         env:

@@ -213,8 +213,17 @@ rock-paper-scissors-game/
    - Advanced caching
    - Rate limiting
 
+## ✅ Recent Improvements
+
+- **Memory Management**: Implemented games history cap (1000 entries) to prevent indefinite memory growth
+- **Modern Go**: Using `max()` function instead of manual if statements  
+- **Generic Deployment**: PROJECT_ID placeholder for reusable deployment
+- **Proper File Endings**: Added newlines to all files per conventions
+
 ## 📋 Quality Checklist
 
+- [x] Memory management for games history
+- [x] Modern Go idioms and best practices
 - [ ] Unit tests with >80% coverage
 - [ ] Integration tests for API endpoints
 - [ ] Separated frontend assets
