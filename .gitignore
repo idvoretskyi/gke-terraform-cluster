@@ -50,7 +50,6 @@ kubeconfig
 *.dll
 *.so
 *.dylib
-rock-paper-scissors-game
 sample-workloads/rock-paper-scissors-game/rock-paper-scissors-game
 
 # Go test files

@@ -130,10 +130,13 @@ func main() {
 	handler = securityHeaders(handler)
 	handler = gzipHandler(handler)
 
-	// Graceful shutdown
+	// Graceful shutdown with timeouts for security
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: handler,
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second, // Time to read request headers and body
+		WriteTimeout: 15 * time.Second, // Time to write response
+		IdleTimeout:  60 * time.Second, // Time to keep connection alive
 	}
 
 	go func() {
