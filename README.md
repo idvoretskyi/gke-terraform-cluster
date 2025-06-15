@@ -175,6 +175,71 @@ checkov -d . --framework terraform
 - Resource labels for compliance and tracking
 - Automated security scanning in CI/CD pipeline
 
+## 🎯 Environment-Specific Deployments
+
+This project supports multiple environments with different configurations:
+
+### Quick Environment Setup
+
+#### Development Environment
+```bash
+# Use development settings (less secure, cost-optimized)
+cp terraform.tfvars.dev terraform.tfvars
+terraform plan
+terraform apply
+```
+
+#### Production Environment
+```bash
+# Use production settings (enhanced security, performance-optimized)
+cp terraform.tfvars.prod terraform.tfvars
+terraform plan
+terraform apply
+```
+
+### Environment Differences
+
+| Feature | Development | Production |
+|---------|-------------|------------|
+| **Instance Type** | e2-micro | e2-standard-2 |
+| **Spot Instances** | ✅ Enabled | ❌ Disabled |
+| **Private Endpoint** | ❌ Disabled | ✅ Enabled |
+| **Binary Authorization** | ❌ Disabled | ✅ Enabled |
+| **Disk Type** | pd-standard | pd-balanced |
+| **Disk Size** | 20GB | 50GB |
+| **Authorized Networks** | All (0.0.0.0/0) | Restricted |
+| **Release Channel** | REGULAR | REGULAR |
+
+### Advanced Configuration Variables
+
+The following variables can be customized in `terraform.tfvars`:
+
+| Variable | Type | Description | Default |
+|----------|------|-------------|---------|
+| `environment` | string | Environment name (dev/staging/prod) | `"dev"` |
+| `enable_private_cluster` | bool | Enable private cluster | `true` |
+| `enable_private_endpoint` | bool | Enable private endpoint | `false` |
+| `enable_network_policy` | bool | Enable network policies | `true` |
+| `enable_binary_authorization` | bool | Enable binary authorization | `false` |
+| `release_channel` | string | GKE release channel | `"REGULAR"` |
+| `enable_spot_instances` | bool | Use spot instances | `true` |
+| `master_authorized_networks` | list | Master authorized networks | See examples |
+
+### Security Best Practices
+
+#### Development Security
+- Private cluster with public endpoint for easy access
+- Network policies enabled for container security
+- Basic master authorized networks (can be opened for development)
+- Spot instances for cost optimization
+
+#### Production Security
+- Private cluster with private endpoint (requires bastion/VPN)
+- Binary Authorization for container image security
+- Restricted master authorized networks
+- Regular instances for stability
+- Enhanced disk performance and size
+
 ## Contributing
 
 1. Fork the repository
